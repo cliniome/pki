@@ -1,0 +1,124 @@
+apply plugin: 'android-sdk-manager'
+apply plugin: 'com.android.application'
+apply from: '../gradle/plugins/checkstyle-android.gradle'
+apply from: '../gradle/plugins/findbugs-android.gradle'
+apply plugin: 'jacoco'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile project(':plugins:Android-PullToRefresh:library')
+    compile project(':plugins:HoloColorPicker')
+    compile project(':plugins:openpgp-api-library')
+    compile 'commons-io:commons-io:2.4'
+    compile 'com.android.support:support-v4:21.0.2'
+    compile 'com.android.support:support-v13:21.0.2'
+    compile 'net.sourceforge.htmlcleaner:htmlcleaner:2.10'
+    compile 'de.cketti.library.changelog:ckchangelog:1.2.1'
+    compile 'com.github.bumptech.glide:glide:3.4.0'
+    compile 'com.felipecsl:gifimageview:1.2.0'
+    /* compile 'com.madgag.spongycastle:core:1.52.0.0'
+                    compile 'com.madgag.spongycastle:prov:1.52.0.0'
+                    compile 'com.madgag.spongycastle:pkix:1.52.0.0'
+                    compile 'com.madgag.spongycastle:pg:1.52.0.0'*/
+    androidTestCompile 'com.android.support.test:testing-support-lib:0.1'
+    androidTestCompile 'com.android.support.test.espresso:espresso-core:2.0'
+    androidTestCompile('com.icegreen:greenmail:1.4.1') {
+        exclude group: 'junit'
+    }
+    testCompile('org.robolectric:robolectric:3.0-rc3') {
+        exclude group: 'org.hamcrest', module: 'hamcrest-core'
+    }
+    testCompile 'org.hamcrest:hamcrest-core:1.3'
+    testCompile('junit:junit:4.10') {
+        exclude group: 'org.hamcrest', module: 'hamcrest-core'
+    }
+    compile project(':secureClient-library')
+    compile files('libs/activation.jar')
+    compile files('libs/additionnal.jar')
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    compile files('libs/javamail-crypto_060622.jar')
+    compile files('libs/FlexiCoreProvider-1.7p7.signed.jar')
+    compile files('libs/CoDec-build17-jdk13.jar')
+    compile files('libs/android-sun-jarsign-support-1.1.jar')
+    compile files('libs/scmail-jdk15on-1.47.0.1.jar')
+    compile files('libs/core-1.52.0.0.jar')
+    compile files('libs/mail-1.52.0.0.jar')
+    compile files('libs/pg-1.52.0.0.jar')
+    compile files('libs/pkix-1.52.0.0.jar')
+    compile files('libs/prov-1.52.0.0.jar')
+    compile files('libs/spongyCastleHandlers.jar')
+    compile files('libs/mail.jar')
+    compile files('libs/activation.jar')
+    compile files('libs/additionnal.jar')
+}
+
+android {
+    compileSdkVersion 21
+    buildToolsVersion '21.1.2'
+
+    defaultConfig {
+        minSdkVersion 15
+        targetSdkVersion 17
+        // Enabling multidex support.
+        multiDexEnabled true
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        release
+    }
+
+    buildTypes {
+        release {
+            if (project.hasProperty('storeFile')) {
+                signingConfig signingConfigs.release
+            }
+
+            buildConfigField "boolean", "DEVELOPER_MODE", "false"
+        }
+
+        debug {
+            applicationIdSuffix ".debug"
+            testCoverageEnabled rootProject.testCoverage
+
+            buildConfigField "boolean", "DEVELOPER_MODE", "true"
+        }
+    }
+
+    // Do not abort build if lint finds errors
+    lintOptions {
+        abortOnError false
+        lintConfig file("$rootProject.projectDir/config/lint/lint.xml")
+    }
+
+    packagingOptions {
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'LICENSE.txt'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_7
+        targetCompatibility JavaVersion.VERSION_1_7
+    }
+}
+
+if (project.hasProperty('keyAlias')) {
+    android.signingConfigs.release.keyAlias = keyAlias
+}
+if (project.hasProperty('keyPassword')) {
+    android.signingConfigs.release.keyPassword = keyPassword
+}
+if (project.hasProperty('storeFile')) {
+    android.signingConfigs.release.storeFile = file(storeFile)
+}
+if (project.hasProperty('storePassword')) {
+    android.signingConfigs.release.storePassword = storePassword
+}

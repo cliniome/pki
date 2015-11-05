@@ -20,6 +20,7 @@ import android.app.AlertDialog.Builder;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ResolveInfo;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
@@ -45,6 +46,8 @@ import java.util.List;
  */
 public class OpenPgpAppPreference extends DialogPreference {
     private static final String OPENKEYCHAIN_PACKAGE = "org.sufficientlysecure.keychain";
+
+    public static final String CERTIFICATE_NAME = "sa.com.is.certificate.name";
     private static final String MARKET_INTENT_URI_BASE = "market://details?id=%s";
     private static final Intent MARKET_INTENT = new Intent(Intent.ACTION_VIEW, Uri.parse(
             String.format(MARKET_INTENT_URI_BASE, OPENKEYCHAIN_PACKAGE)));
@@ -53,11 +56,13 @@ public class OpenPgpAppPreference extends DialogPreference {
 
     static {
         // Unfortunately, the current released version of APG includes a broken version of the API
-        PROVIDER_BLACKLIST.add("org.thialfihar.android.apg");
+      //  PROVIDER_BLACKLIST.add("org.thialfihar.android.apg");
     }
 
     private ArrayList<OpenPgpProviderEntry> mLegacyList = new ArrayList<>();
     private ArrayList<OpenPgpProviderEntry> mList = new ArrayList<>();
+    private List<CertificateHelper.CertificateLocator> certificates =
+            new ArrayList<CertificateHelper.CertificateLocator>();
 
     private String mSelectedPackage;
 
@@ -85,7 +90,100 @@ public class OpenPgpAppPreference extends DialogPreference {
     protected void onPrepareDialogBuilder(Builder builder) {
 
         // do again, maybe an app has now been installed
+       // populateAppList();
+
+        prepareDefaultValues();
+
+
+        List<CertificateHelper.CertificateLocator> locators = CertificateHelper.getInstalledUserCertificates();
+        this.certificates.addAll(locators);
+
+        // Init ArrayAdapter with OpenPGP Providers
+        ListAdapter adapter = new ArrayAdapter<CertificateHelper.CertificateLocator>(getContext(),
+                android.R.layout.select_dialog_singlechoice, android.R.id.text1, locators) {
+            public View getView(int position, View convertView, ViewGroup parent) {
+                // User super class to create the View
+                View v = super.getView(position, convertView, parent);
+                TextView tv = (TextView) v.findViewById(android.R.id.text1);
+
+                // Put the image on the TextView
+                Drawable certIcon = getContext().getResources().getDrawable(R.drawable.certificate);
+                tv.setCompoundDrawablesWithIntrinsicBounds(certIcon, null,
+                        null, null);
+
+                // Add margin between image and text (support various screen densities)
+                int dp10 = (int) (10 * getContext().getResources().getDisplayMetrics().density + 0.5f);
+                tv.setCompoundDrawablePadding(dp10);
+
+                return v;
+            }
+        };
+
+        builder.setSingleChoiceItems(adapter, getIndexOfProviderList(mSelectedPackage),
+                new DialogInterface.OnClickListener() {
+
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+
+                        CertificateHelper.CertificateLocator current = certificates.get(which);
+
+                        if(current != null)
+                        {
+                           mSelectedPackage = current.toString();
+
+                            //now set the value
+                            OpenPgpAppPreference.this.setValue(mSelectedPackage);
+                        }
+
+                        /*OpenPgpProviderEntry entry = mList.get(which);
+
+
+                        if (entry.intent != null) {
+                            *//*
+                             * Intents are called as activity
+                             *
+                             * Current approach is to assume the user installed the app.
+                             * If he does not, the selected package is not valid.
+                             *
+                             * However  applications should always consider this could happen,
+                             * as the user might remove the currently used OpenPGP app.
+                             *//*
+                            getContext().startActivity(entry.intent);
+                            return;
+                        }*/
+
+                      //  mSelectedPackage = entry.packageName;
+
+                        /*
+                         * Clicking on an item simulates the positive button click, and dismisses
+                         * the dialog.
+                         */
+                        OpenPgpAppPreference.this.onClick(dialog, DialogInterface.BUTTON_POSITIVE);
+                        dialog.dismiss();
+                    }
+                });
+
+        /*
+         * The typical interaction for list-based dialogs is to have click-on-an-item dismiss the
+         * dialog instead of the user having to press 'Ok'.
+         */
+        builder.setPositiveButton(null, null);
+    }
+
+    private void prepareDefaultValues() {
+
+        SharedPreferences prefs = getSharedPreferences();
+        mSelectedPackage = prefs.getString(CERTIFICATE_NAME,"None");
+        setValue(mSelectedPackage);
+    }
+
+    /*@Override
+    protected void onPrepareDialogBuilder(Builder builder) {
+
+        // do again, maybe an app has now been installed
         populateAppList();
+
+        List<CertificateHelper.CertificateLocator> locators = CertificateHelper.getInstalledUserCertificates();
 
         // Init ArrayAdapter with OpenPGP Providers
         ListAdapter adapter = new ArrayAdapter<OpenPgpProviderEntry>(getContext(),
@@ -115,7 +213,7 @@ public class OpenPgpAppPreference extends DialogPreference {
                         OpenPgpProviderEntry entry = mList.get(which);
 
                         if (entry.intent != null) {
-                            /*
+                            *//*
                              * Intents are called as activity
                              *
                              * Current approach is to assume the user installed the app.
@@ -123,28 +221,28 @@ public class OpenPgpAppPreference extends DialogPreference {
                              *
                              * However  applications should always consider this could happen,
                              * as the user might remove the currently used OpenPGP app.
-                             */
+                             *//*
                             getContext().startActivity(entry.intent);
                             return;
                         }
 
                         mSelectedPackage = entry.packageName;
 
-                        /*
+                        *//*
                          * Clicking on an item simulates the positive button click, and dismisses
                          * the dialog.
-                         */
+                         *//*
                         OpenPgpAppPreference.this.onClick(dialog, DialogInterface.BUTTON_POSITIVE);
                         dialog.dismiss();
                     }
                 });
 
-        /*
+        *//*
          * The typical interaction for list-based dialogs is to have click-on-an-item dismiss the
          * dialog instead of the user having to press 'Ok'.
-         */
+         *//*
         builder.setPositiveButton(null, null);
-    }
+    }*/
 
     @Override
     protected void onDialogClosed(boolean positiveResult) {
@@ -187,7 +285,9 @@ public class OpenPgpAppPreference extends DialogPreference {
 
     @Override
     public CharSequence getSummary() {
-        return getEntryByValue(mSelectedPackage);
+
+        mSelectedPackage = getSharedPreferences().getString(CERTIFICATE_NAME,"None");
+        return mSelectedPackage;
     }
 
     private int getIndexOfProviderList(String packageName) {
@@ -220,6 +320,10 @@ public class OpenPgpAppPreference extends DialogPreference {
      */
     public void setValue(String packageName) {
         setAndPersist(packageName);
+        SharedPreferences.Editor editor = getSharedPreferences().edit();
+        editor.putString(CERTIFICATE_NAME, packageName);
+        editor.commit();
+
     }
 
     @Override
@@ -232,6 +336,7 @@ public class OpenPgpAppPreference extends DialogPreference {
         if (restoreValue) {
             // Restore state
             mSelectedPackage = getPersistedString(mSelectedPackage);
+            mSelectedPackage = getSharedPreferences().getString(CERTIFICATE_NAME,"None");
             updateSummary(mSelectedPackage);
         } else {
             String value = (String) defaultValue;
@@ -241,9 +346,17 @@ public class OpenPgpAppPreference extends DialogPreference {
     }
 
     public String getEntryByValue(String packageName) {
-        for (OpenPgpProviderEntry app : mList) {
+        /*for (OpenPgpProviderEntry app : mList) {
             if (app.packageName.equals(packageName) && app.intent == null) {
                 return app.simpleName;
+            }
+        }*/
+
+        for(CertificateHelper.CertificateLocator locator : certificates)
+        {
+            if(locator.getCertName().equals(packageName))
+            {
+                return packageName;
             }
         }
 
