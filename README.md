@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # K-9 Mail
 [![Build Status](https://k9mail.ci.cloudbees.com/job/master/badge/icon)](https://k9mail.ci.cloudbees.com/job/master/)
 [![Join the chat](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/k9mail/k-9)
@@ -81,3 +82,7 @@ CloudBees' [FOSS program](https://www.cloudbees.com/resources/foss) allows us to
 
 ![built on DEV@cloud](https://www.cloudbees.com/sites/default/files/styles/large/public/Button-Built-on-CB-1.png)
 
+=======
+# pki
+PKI solution
+>>>>>>> fcc6240a1f4a15a5d02f294f64ecc0b0e76ce862
