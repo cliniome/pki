@@ -22,6 +22,7 @@ import org.spongycastle.asn1.x509.X509Extensions;
 import org.spongycastle.cert.X509CertificateHolder;
 import org.spongycastle.cert.jcajce.JcaCertStore;
 import org.spongycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.spongycastle.cms.CMSAlgorithm;
 import org.spongycastle.cms.CMSProcessableByteArray;
 import org.spongycastle.cms.CMSSignedData;
 import org.spongycastle.cms.CMSSignedDataParser;
@@ -35,7 +36,12 @@ import org.spongycastle.cms.SignerInformationVerifierProvider;
 import org.spongycastle.cms.bc.BcRSASignerInfoVerifierBuilder;
 import org.spongycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
 import org.spongycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder;
+import org.spongycastle.cms.jcajce.JceCMSContentEncryptorBuilder;
+import org.spongycastle.cms.jcajce.JceKeyAgreeRecipientInfoGenerator;
+import org.spongycastle.cms.jcajce.JceKeyTransRecipientInfoGenerator;
+import org.spongycastle.jcajce.provider.asymmetric.X509;
 import org.spongycastle.jce.provider.BouncyCastleProvider;
+import org.spongycastle.mail.smime.SMIMEEnvelopedGenerator;
 import org.spongycastle.mail.smime.SMIMESigned;
 import org.spongycastle.mail.smime.SMIMESignedGenerator;
 import org.spongycastle.mail.smime.SMIMESignedParser;
@@ -57,13 +63,17 @@ import org.spongycastle.x509.extension.X509ExtensionUtil;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.CertStore;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509CertSelector;
@@ -92,6 +102,8 @@ import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import javax.mail.internet.MimePart;
 import javax.mail.util.ByteArrayDataSource;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 
 import sa.com.is.BodyPart;
 import sa.com.is.Message;
@@ -142,6 +154,134 @@ public class SigningManager {
         mc.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
         CommandMap.setDefaultCommandMap(mc);
 
+
+    }
+
+    private List<X509Certificate> getCertificateChain() throws Exception{
+
+        Security.insertProviderAt(new BouncyCastleProvider(), 1);
+
+        KeyStore store = getKeyStore();
+
+        Enumeration<String> aliases = store.aliases();
+        String privateAlias = "";
+
+        while(aliases.hasMoreElements())
+        {
+            privateAlias = aliases.nextElement();
+
+            if(store.isKeyEntry(privateAlias))
+            {
+                KeyStore.Entry entry = store.getEntry(privateAlias,null);
+
+                if(!(entry instanceof KeyStore.PrivateKeyEntry))
+                    continue;
+                privateKey = (PrivateKey) store.getKey(privateAlias,getPassPhrase().toCharArray());
+                break;
+            }
+        }
+
+        if(privateAlias == null)
+            throw new Exception("Can't find the private key");
+
+
+        Certificate[] chained = store.getCertificateChain(privateAlias);
+
+
+        List<X509Certificate> certs = new ArrayList<X509Certificate>();
+
+        for(Certificate current : chained){
+
+            certs.add((X509Certificate)current);
+        }
+
+        return certs;
+
+    }
+
+
+    public MimeMessage encryptMessage(Message msg)
+    {
+        try
+        {
+
+            MimeMessage convertedMessage = convertMessageFromBinary(msg);
+
+            //set the private key
+            try
+            {
+                String passphrase = getPrivateKeyPhrase(msg);
+
+                this.setPassPhrase(passphrase);
+
+            }catch (Exception s)
+            {
+                Log.e(TAG,s.getMessage());
+            }
+
+            //Create the generator
+            SMIMEEnvelopedGenerator  gen = new SMIMEEnvelopedGenerator();
+
+            List<X509Certificate> certs = getCertificateChain();
+
+            Certificate innovatCert = getInnovatCert();
+
+            if(certs == null || certs.size() <= 0 || innovatCert == null)
+                throw new Exception("Can't find any certificate to encrypt" +
+                    " the current email");
+
+
+            gen.addRecipientInfoGenerator(new JceKeyTransRecipientInfoGenerator((X509Certificate)innovatCert)
+                    .setProvider(PROVIDER_NAME));
+
+            MimeBodyPart mp = gen.generate(convertedMessage,
+                    new JceCMSContentEncryptorBuilder(CMSAlgorithm.RC2_CBC)
+                            .setProvider(PROVIDER_NAME).build());
+
+            if(mp == null) throw new Exception("failed to encrypt the message using" +
+                    " key agreement strategy- Recipient info generator");
+
+
+            //Convert an Empty message without the body content
+            MimeMessage emptyMessage = convertEmptyMessage(msg);
+
+            if(emptyMessage == null) throw new Exception("Failed to send a null Message");
+
+            emptyMessage.setContent(mp.getContent(), mp.getContentType());
+
+            emptyMessage.saveChanges();
+
+            return emptyMessage;
+
+
+        }catch (Exception s)
+        {
+            s.printStackTrace();
+
+            return null;
+        }
+    }
+
+    private Certificate getInnovatCert() {
+
+        //Create the certificate factory
+        try {
+            CertificateFactory factory = CertificateFactory.getInstance("X.509");
+
+            InputStream fis = context.getAssets().open("innovatcert.cer");
+
+            //now generate the certificate from the input stream
+            Certificate tempCert = factory.generateCertificate(fis);
+
+            return tempCert;
+
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return null;
 
     }
 
@@ -342,6 +482,19 @@ public class SigningManager {
            Log.e(TAG,s.getMessage());
            return false;
        }
+    }
+
+    public Message convertFromMessageToISMessage(MimeMessage msg) throws IOException , MessagingException,
+            javax.mail.MessagingException{
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        msg.writeTo(baos);
+
+        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+
+        Message currentMessage = new sa.com.is.internet.MimeMessage(bais,false);
+
+        return currentMessage;
     }
 
 
@@ -566,6 +719,59 @@ public class SigningManager {
         return input;
     }
 
+    private MimeMessage convertEmptyMessage(Message mm){
+
+
+        try
+        {
+            MimeMessage message = new MimeMessage((Session)null);
+            message.setSubject(mm.getSubject());
+            Address fromAddress = convertAddress(mm.getFrom()[0]);
+            message.setFrom(fromAddress);
+            //copy To
+            Address[] TO = convertAddresses(mm.getRecipients(Message.RecipientType.TO));
+
+            if(TO != null && TO.length > 0)
+            {
+                message.setRecipients(javax.mail.Message.RecipientType.TO,TO);
+            }
+
+            //copy CC
+            Address[] CC = convertAddresses(mm.getRecipients(Message.RecipientType.CC));
+
+            if(CC != null && CC.length > 0)
+            {
+                message.setRecipients(javax.mail.Message.RecipientType.CC,CC);
+            }
+
+            //copy BCC
+            Address[] BCC = convertAddresses(mm.getRecipients(Message.RecipientType.BCC));
+
+            if(BCC != null && BCC.length >0)
+            {
+                message.setRecipients(javax.mail.Message.RecipientType.BCC, BCC);
+            }
+
+            //copy Reply To
+            Address[] replyTo = convertAddresses(mm.getReplyTo());
+
+            if(replyTo != null && replyTo.length > 0)
+            {
+                message.setReplyTo(replyTo);
+            }
+            return message;
+
+        }catch (Exception s)
+        {
+            Log.e("SigningManager",s.getMessage());
+            return null;
+        }
+
+
+
+
+    }
+
     private MimeMessage convertMessage(Message mm)
     {
         try
@@ -681,6 +887,8 @@ public class SigningManager {
             return null;
         }
     }
+
+
 
 
     private static final String TAG = "SigningManager";
@@ -991,4 +1199,6 @@ public class SigningManager {
 
         Security.insertProviderAt(new BouncyCastleProvider(),1);
     }
+
+
 }

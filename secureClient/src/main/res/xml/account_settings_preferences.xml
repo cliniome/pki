@@ -468,10 +468,14 @@
 
         <Preference android:title="Pick A Certificate"
             android:key="pickACertificate"/>
+
         <EditTextPreference android:persistent="true"
             android:key="certificate_key_passphrase"
             android:title="@string/PRIVATE_KEY_TITLE"
             android:dialogTitle="@string/PRIVATE_KEY_PASSPHRASE"/>
+        <Preference android:title="Add Trustees"
+            android:summary="Add any Recipient here that you want him/her receive encrypted Email Messages from you"
+            android:key="ADD_TRUSTEES"/>
 
 
     </PreferenceScreen>

@@ -39,6 +39,7 @@ import sa.com.is.K9;
 import sa.com.is.NotificationSetting;
 import sa.com.is.Preferences;
 import sa.com.is.R;
+import sa.com.is.activity.AddTrusteesActivity;
 import sa.com.is.activity.ChooseFolder;
 import sa.com.is.activity.ChooseIdentity;
 import sa.com.is.activity.ColorPickerDialog;
@@ -259,6 +260,22 @@ public class AccountSettings extends K9PreferenceActivity {
 
                     return true;
 
+                }
+            });
+        }
+
+        //attach a click listener for "Add Trustee" Preference Screen
+        Preference trusteePrefs = (Preference)findPreference("ADD_TRUSTEES");
+
+        if(trusteePrefs != null){
+
+            trusteePrefs.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    //open the new activity in here
+                    Intent trusteesIntent = new Intent(AccountSettings.this, AddTrusteesActivity.class);
+                    startActivity(trusteesIntent);
+                    return true;
                 }
             });
         }

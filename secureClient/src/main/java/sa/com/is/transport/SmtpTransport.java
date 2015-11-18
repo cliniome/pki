@@ -554,11 +554,25 @@ public class SmtpTransport extends Transport {
 
           //  message = new MimeMessageConverter().signThatMessage(message, ContextHolder.createInstance(null).getContext());
 
-            if(message.isSigned())
-            {
 
-                SigningManager signingManager = new SigningManager(ContextHolder.createInstance(null).getContext(),
-                        message.getFrom()[0].getAddress());
+            SigningManager signingManager = new SigningManager(ContextHolder.createInstance(null).getContext(),
+                    message.getFrom()[0].getAddress());
+
+            if(message.isSigned() && message.isEncrypted()){
+
+                //First do the signing part
+                MimeMessage signedMessage = signingManager.signMessage(message);
+                //convert to normal message
+                Message msg = signingManager.convertFromMessageToISMessage(signedMessage);
+
+                // Second, Encrypt it
+                MimeMessage encryptedMsg = signingManager.encryptMessage(msg);
+
+                encryptedMsg.writeTo(msgOut);
+
+            }
+            else if(message.isSigned())
+            {
 
                 MimeMessage signedMessage = signingManager.signMessage(message);
 
@@ -566,13 +580,20 @@ public class SmtpTransport extends Transport {
 
                 signedMessage.writeTo(msgOut);
 
+            }else if (message.isEncrypted()){
+
+                //Do the encryption in here
+                MimeMessage encryptedMessage = signingManager.encryptMessage(message);
+
+                //then write the encrypted message to the SMTP Server Socket
+               encryptedMessage.writeTo(msgOut);
+
+
             }else
             {
                 message.writeTo(msgOut);
             }
-
             mOut.flush();
-
             // We use BufferedOutputStream. So make sure to call flush() !
             //msgOut.flush();
 

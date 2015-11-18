@@ -114,6 +114,15 @@ public class LocalMessage extends MimeMessage {
 
             this.setSigned(signingResult);
         }
+        columnIndex = cursor.getColumnIndex(StoreSchemaDefinition.ENCRYPTED_COLUMN);
+
+        if(columnIndex != -1)
+        {
+            boolean encryptedResult = (cursor.getInt(columnIndex) == 0) ? false : true;
+
+            this.setEncrypted(encryptedResult);
+        }
+
         setFlagInternal(Flag.DELETED, deleted);
         setFlagInternal(Flag.SEEN, read);
         setFlagInternal(Flag.FLAGGED, flagged);

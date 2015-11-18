@@ -787,14 +787,24 @@ public class MessageCompose extends K9Activity implements OnClickListener,
 
                     MessageCompose.this.setSigned(isChecked);
 
+
+                }
+            };
+
+            final OnCheckedChangeListener oncheckedEncryptListener = new OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton compoundButton, boolean isChecked) {
+
+                    updateMessageFormat();
+                    MessageCompose.this.setEncrypted(isChecked);
                 }
             };
             mCryptoSignatureCheckbox.setOnCheckedChangeListener(updateListener);
             mCryptoSignatureUserId = (TextView)findViewById(R.id.userId);
             mCryptoSignatureUserIdRest = (TextView)findViewById(R.id.userIdRest);
             mEncryptCheckbox = (CheckBox)findViewById(R.id.cb_encrypt);
-            mEncryptCheckbox.setOnCheckedChangeListener(updateListener);
-            mEncryptCheckbox.setVisibility(View.INVISIBLE);
+            mEncryptCheckbox.setOnCheckedChangeListener(oncheckedEncryptListener);
+            //mEncryptCheckbox.setVisibility(View.INVISIBLE);
 
             if (mSourceMessageBody != null) {
                 // mSourceMessageBody is set to something when replying to and forwarding decrypted

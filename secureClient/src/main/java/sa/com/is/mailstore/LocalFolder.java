@@ -1227,6 +1227,7 @@ public class LocalFolder extends Folder<LocalMessage> implements Serializable {
             cv.put("mime_type", message.getMimeType());
             cv.put("empty", 0);
             cv.put(StoreSchemaDefinition.SIGNED_COLUMN,(message.isSigned() == true ?1 :0));
+            cv.put(StoreSchemaDefinition.ENCRYPTED_COLUMN,(message.isEncrypted() == true ? 1:0));
 
             String messageId = message.getMessageId();
             if (messageId != null) {
