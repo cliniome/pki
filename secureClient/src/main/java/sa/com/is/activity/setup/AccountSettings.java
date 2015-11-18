@@ -1,7 +1,6 @@
 
 package sa.com.is.activity.setup;
 
-import java.io.File;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -25,7 +24,6 @@ import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.preference.RingtonePreference;
 import android.util.Log;
-import android.widget.Toast;
 
 import sa.com.is.Account;
 import sa.com.is.Account.DeletePolicy;
@@ -39,13 +37,12 @@ import sa.com.is.K9;
 import sa.com.is.NotificationSetting;
 import sa.com.is.Preferences;
 import sa.com.is.R;
-import sa.com.is.activity.AddTrusteesActivity;
+import sa.com.is.activity.ShowTrusteesActivity;
 import sa.com.is.activity.ChooseFolder;
 import sa.com.is.activity.ChooseIdentity;
 import sa.com.is.activity.ColorPickerDialog;
 import sa.com.is.activity.K9PreferenceActivity;
 import sa.com.is.activity.ManageIdentities;
-import sa.com.is.crypto.OpenPgpApiHelper;
 import sa.com.is.Folder;
 import sa.com.is.Store;
 import sa.com.is.mailstore.LocalFolder;
@@ -55,7 +52,6 @@ import sa.com.is.utils.FileUtils;
 
 import org.openintents.openpgp.util.OpenPgpAppPreference;
 import org.openintents.openpgp.util.OpenPgpKeyPreference;
-import org.openintents.openpgp.util.OpenPgpUtils;
 
 
 public class AccountSettings extends K9PreferenceActivity {
@@ -273,7 +269,7 @@ public class AccountSettings extends K9PreferenceActivity {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {
                     //open the new activity in here
-                    Intent trusteesIntent = new Intent(AccountSettings.this, AddTrusteesActivity.class);
+                    Intent trusteesIntent = new Intent(AccountSettings.this, ShowTrusteesActivity.class);
                     startActivity(trusteesIntent);
                     return true;
                 }

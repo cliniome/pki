@@ -4,6 +4,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,7 @@ import static sa.com.is.db.SecureClientDBHelper.*;
  */
 public class TrusteeManager {
 
+    private static final String TAG ="TrusteeManager" ;
     private SecureClientDBHelper dbHelper;
 
 
@@ -31,7 +33,7 @@ public class TrusteeManager {
         values.put(EMAIL_CERTIFICATE,trustee.getEmailCertificate());
         //now get a writable Database to insert the trustee
         SQLiteDatabase db = dbHelper.getWritableDatabase();
-        long affectedRow = db.insert(TABLE_NAME,null,values);
+        long affectedRow = db.insert(TABLE_NAME, null, values);
         db.close();
 
         return (affectedRow > 0) ? true :false;
@@ -57,6 +59,40 @@ public class TrusteeManager {
         int rows = db.delete(TABLE_NAME,whereClause,whereArgs);
         db.close();
         return (rows > 0 ) ? true : false;
+    }
+
+
+    public List<String> getAllTrustees(){
+
+       try
+       {
+           String sql = "select * from " + TABLE_NAME;
+           //now get a readable Database
+           SQLiteDatabase db = dbHelper.getReadableDatabase();
+
+           //now perform a raw query over the readable database to retrieve all existing trustees
+           //into the database
+           Cursor data = db.rawQuery(sql,null);
+
+           //List all trustees
+           List<String> allTrustees = new ArrayList<String>();
+
+           while(data.moveToNext()){
+               //get the person
+               int columnIndex = data.getColumnIndex(EMAIL_ADDRESS);
+               String emailAddress = data.getString(columnIndex);
+               //now add that person to the trustees
+               allTrustees.add(emailAddress);
+           }
+
+           return allTrustees;
+
+       }catch (Exception s)
+       {
+           Log.e(TAG,s.getMessage());
+
+           return new ArrayList<String>();
+       }
     }
 
 

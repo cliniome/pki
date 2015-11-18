@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+
+    <TextView
+        android:id="@+id/txtemail"
+        android:text="Trustee Email Address"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <EditText
+        android:id="@+id/emailAddress"
+        android:layout_below="@id/txtemail"
+        android:hint="Fill Your Recipient Email Address"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+
+    <TextView
+        android:id="@+id/txtcertificate"
+        android:layout_below="@id/emailAddress"
+        android:text="Trustee Certificate Location"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <EditText
+        android:id="@+id/certificatelocation"
+        android:editable="false"
+        android:layout_below="@id/txtcertificate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <Button android:id="@+id/pickCertBtn"
+        android:text="Pick Trustee Certificate"
+        android:layout_below="@id/certificatelocation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+</RelativeLayout>

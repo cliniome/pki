@@ -305,8 +305,11 @@
             android:name="sa.com.is.activity.UpgradeDatabases"
             android:label="@string/upgrade_databases_title"/>
 
-        <activity android:name=".activity.AddTrusteesActivity"
+        <activity android:name=".activity.ShowTrusteesActivity"
             android:label="Add Trustees"/>
+
+        <activity android:name=".AddTrusteeActivity"
+            android:label="Add New Trustee"/>
 
         <receiver
             android:name="sa.com.is.service.BootReceiver"

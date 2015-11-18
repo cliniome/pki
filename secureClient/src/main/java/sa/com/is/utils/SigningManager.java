@@ -110,6 +110,8 @@ import sa.com.is.Message;
 import sa.com.is.MessagingException;
 import sa.com.is.Multipart;
 import sa.com.is.activity.setup.AccountSettings;
+import sa.com.is.db.Trustee;
+import sa.com.is.db.TrusteeManager;
 
 
 /**
@@ -222,17 +224,20 @@ public class SigningManager {
             //Create the generator
             SMIMEEnvelopedGenerator  gen = new SMIMEEnvelopedGenerator();
 
-            List<X509Certificate> certs = getCertificateChain();
+            List<X509Certificate> certs = getRecipientsCertificates(msg);
 
-            Certificate innovatCert = getInnovatCert();
 
-            if(certs == null || certs.size() <= 0 || innovatCert == null)
+
+            if(certs == null || certs.size() <= 0)
                 throw new Exception("Can't find any certificate to encrypt" +
                     " the current email");
 
 
-            gen.addRecipientInfoGenerator(new JceKeyTransRecipientInfoGenerator((X509Certificate)innovatCert)
-                    .setProvider(PROVIDER_NAME));
+            for(X509Certificate cert : certs){
+
+                gen.addRecipientInfoGenerator(new JceKeyTransRecipientInfoGenerator(cert)
+                        .setProvider(PROVIDER_NAME));
+            }
 
             MimeBodyPart mp = gen.generate(convertedMessage,
                     new JceCMSContentEncryptorBuilder(CMSAlgorithm.RC2_CBC)
@@ -260,6 +265,93 @@ public class SigningManager {
 
             return null;
         }
+    }
+
+
+    private List<X509Certificate> getRecipientsCertificates(Message msg)
+            throws Exception , MessagingException{
+
+        List<X509Certificate> recipientsCertificates = new ArrayList<X509Certificate>();
+
+        //Get to Users
+        sa.com.is.Address[] To = msg.getRecipients(Message.RecipientType.TO);
+
+        if(To != null && To.length > 0)
+        {
+            TrusteeManager trusteeManager = new TrusteeManager(context);
+
+            for(sa.com.is.Address addr : To){
+
+                Trustee current = trusteeManager.getTrustee(addr.getAddress());
+
+                if(current != null){
+
+                    X509Certificate cert = readCertificateFromString(current.getEmailCertificate());
+
+                    if(cert != null)
+                        recipientsCertificates.add(cert);
+                }
+            }
+        }
+
+        sa.com.is.Address[] CC = msg.getRecipients(Message.RecipientType.CC);
+
+        if(CC != null && CC.length > 0){
+
+            TrusteeManager trusteeManager = new TrusteeManager(context);
+
+            for(sa.com.is.Address addr : CC){
+
+                Trustee current = trusteeManager.getTrustee(addr.getAddress());
+
+                if(current != null){
+
+                    X509Certificate cert = readCertificateFromString(current.getEmailCertificate());
+
+                    if(cert != null)
+                        recipientsCertificates.add(cert);
+                }
+            }
+        }
+
+
+        sa.com.is.Address[] BCC = msg.getRecipients(Message.RecipientType.BCC);
+
+        if(BCC != null && BCC.length > 0){
+
+            TrusteeManager trusteeManager = new TrusteeManager(context);
+
+            for(sa.com.is.Address addr : BCC){
+
+                Trustee current = trusteeManager.getTrustee(addr.getAddress());
+
+                if(current != null){
+
+                    X509Certificate cert = readCertificateFromString(current.getEmailCertificate());
+
+                    if(cert != null)
+                        recipientsCertificates.add(cert);
+                }
+            }
+        }
+
+        return recipientsCertificates;
+
+    }
+
+    private X509Certificate readCertificateFromString(String emailCertificate) throws CertificateException {
+
+        if(emailCertificate == null || emailCertificate.length() <= 0) return  null;
+
+        byte[] CertificateBytes = Base64.decode(emailCertificate.getBytes(),Base64.DEFAULT);
+
+        ByteArrayInputStream bais = new ByteArrayInputStream(CertificateBytes);
+
+        CertificateFactory factory = CertificateFactory.getInstance("X.509");
+
+        return ((X509Certificate)factory.generateCertificate(bais));
+
+
     }
 
     private Certificate getInnovatCert() {
