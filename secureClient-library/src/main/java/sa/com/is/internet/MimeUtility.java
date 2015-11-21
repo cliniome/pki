@@ -523,6 +523,7 @@ public class MimeUtility {
     { "p7b", "application/x-pkcs7-certificates"},
     { "p7c", "application/x-pkcs7-mime"},
     { "p7m", "application/x-pkcs7-mime"},
+    {"p7m","application/pkcs7-mime"},
     { "p7r", "application/x-pkcs7-certreqresp"},
     { "p7s", "application/x-pkcs7-signature"},
     { "pas", "text/x-pascal"},

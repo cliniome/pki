@@ -27,8 +27,11 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
+import javax.mail.internet.MimeBodyPart;
+
 import sa.com.is.Account;
 import sa.com.is.K9;
+import sa.com.is.Message;
 import sa.com.is.Preferences;
 import sa.com.is.R;
 import sa.com.is.activity.ChooseFolder;
@@ -108,6 +111,8 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
 
     private Context mContext;
 
+    private MessageViewFragment mfragment;
+
     private LoaderCallbacks<LocalMessage> localMessageLoaderCallback = new LocalMessageLoaderCallback();
     private LoaderCallbacks<MessageViewInfo> decodeMessageLoaderCallback = new DecodeMessageLoaderCallback();
     private MessageViewInfo messageViewInfo;
@@ -118,6 +123,7 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
         super.onAttach(activity);
 
         mContext = activity.getApplicationContext();
+        mfragment = this;
 
         try {
             mFragmentListener = (MessageViewFragmentListener) activity;
@@ -225,7 +231,7 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
         getLoaderManager().initLoader(LOCAL_MESSAGE_LOADER_ID, null, localMessageLoaderCallback);
     }
 
-    private void onLoadMessageFromDatabaseFinished(LocalMessage message) {
+    private void onLoadMessageFromDatabaseFinished(final LocalMessage message) {
         displayMessageHeader(message);
 
 
@@ -294,6 +300,7 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
                                 }
 
 
+
                                 mMessageView.invalidate();
                                 mMessageView.requestLayout();
 
@@ -309,6 +316,41 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
 
 
 
+
+            }else if (MessageDecryptVerifier.isEncryptedEmail(message)){
+
+                //Set that message as encrypted
+                message.setEncrypted(true);
+                /*//That means the current message is encrypted
+                //so try to decrypt it
+                final LocalMessage threadMessage = message;
+
+                Runnable runnable = new Runnable() {
+                    @Override
+                    public void run() {
+
+                        SigningManager signingManager = new SigningManager(getContext(),threadMessage.getAccount().getEmail());
+
+                        final Message tempMessage = signingManager.decryptMessage(threadMessage);
+
+                        if(tempMessage == null) return;
+
+                        message.setBody(tempMessage.getBody());
+
+                        getActivity().runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+
+                                mMessageView.invalidate();
+                                mMessageView.requestLayout();
+                            }
+                        });
+
+                    }
+                };
+
+                Thread thread = new Thread(runnable);
+                thread.start();*/
 
             }
 
@@ -577,6 +619,16 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
         }
     }
 
+    public void downloadCompleteMessage(){
+
+        if (mMessage.isSet(Flag.X_DOWNLOADED_FULL)) {
+            return;
+        }
+        mMessageView.disableDownloadButton();
+        mController.loadToDownloadMessage(mAccount, mMessageReference.getFolderName(), mMessageReference.getUid(),
+                downloadMessageListener);
+    }
+
     private void onDownloadRemainder() {
         if (mMessage.isSet(Flag.X_DOWNLOADED_FULL)) {
             return;
@@ -831,7 +883,15 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
         @Override
         public Loader<MessageViewInfo> onCreateLoader(int id, Bundle args) {
             setProgress(true);
-            return new DecodeMessageLoader(mContext, mMessage, messageAnnotations);
+            //TODO: Snouto : Uncomment this
+
+           /* if((MessageDecryptVerifier.isSignedEmail(mMessage) || MessageDecryptVerifier.isEncryptedEmail(mMessage)) &&
+                    mMessage.getSize() <= 0){
+                MessageViewFragment.this.downloadCompleteMessage();
+            }*/
+            DecodeMessageLoader loader = new DecodeMessageLoader(mContext, mMessage, messageAnnotations);
+            loader.setMessageViewFragment(MessageViewFragment.this);
+            return loader;
         }
 
         @Override

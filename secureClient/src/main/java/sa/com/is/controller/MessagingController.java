@@ -2886,6 +2886,14 @@ public class MessagingController implements Runnable {
         });
     }
 
+    public void loadToDownloadMessage(final Account account, final String folder,
+                                      final String uid, final MessagingListener listener){
+
+        loadMessageForViewRemoteSynchronous(account, folder, uid, listener, false, false);
+
+
+    }
+
     public boolean loadMessageForViewRemoteSynchronous(final Account account, final String folder,
             final String uid, final MessagingListener listener, final boolean force,
             final boolean loadPartialFromSearch) {

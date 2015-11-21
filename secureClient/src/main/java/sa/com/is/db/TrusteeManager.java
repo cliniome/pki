@@ -106,8 +106,9 @@ public class TrusteeManager {
         String[] selectableFields = dbHelper.getAllColumns();
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         Cursor data = db.query(TABLE_NAME, selectableFields, whereClause, whereArgs, groupBy, having, order);
-        Trustee person = new Trustee();
+        Trustee person = null;
         while(data.moveToNext()){
+            person = new Trustee();
             //get the next element
             int columnIndex = data.getColumnIndex(ID);
             person.setID(data.getString(columnIndex));

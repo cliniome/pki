@@ -142,6 +142,11 @@ public class LocalMessage extends MimeMessage {
         return mimeType;
     }
 
+
+    public void setMimeType(String mimeType){
+        this.mimeType = mimeType;
+    }
+
     /* Custom version of writeTo that updates the MIME message based on localMessage
      * changes.
      */

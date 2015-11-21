@@ -88,6 +88,8 @@ public class MessageTopView extends LinearLayout implements ShowPicturesControll
             throws MessagingException {
         resetView();
 
+        //if(messageViewInfo == null || messageViewInfo.message == null) return;
+
         ShowPictures showPicturesSetting = account.getShowPictures();
         boolean automaticallyLoadPictures =
                 shouldAutomaticallyLoadPictures(showPicturesSetting, messageViewInfo.message);

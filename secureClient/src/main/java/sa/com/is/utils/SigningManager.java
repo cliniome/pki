@@ -7,6 +7,8 @@ import android.preference.PreferenceManager;
 import android.util.Base64;
 import android.util.Log;
 
+import com.sun.mail.util.BASE64DecoderStream;
+
 import org.spongycastle.asn1.ASN1Encodable;
 import org.spongycastle.asn1.ASN1EncodableVector;
 
@@ -28,6 +30,9 @@ import org.spongycastle.cms.CMSSignedData;
 import org.spongycastle.cms.CMSSignedDataParser;
 import org.spongycastle.cms.CMSTypedData;
 import org.spongycastle.cms.DefaultSignedAttributeTableGenerator;
+import org.spongycastle.cms.RecipientId;
+import org.spongycastle.cms.RecipientInformation;
+import org.spongycastle.cms.RecipientInformationStore;
 import org.spongycastle.cms.SignerId;
 import org.spongycastle.cms.SignerInformation;
 import org.spongycastle.cms.SignerInformationStore;
@@ -38,14 +43,18 @@ import org.spongycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
 import org.spongycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder;
 import org.spongycastle.cms.jcajce.JceCMSContentEncryptorBuilder;
 import org.spongycastle.cms.jcajce.JceKeyAgreeRecipientInfoGenerator;
+import org.spongycastle.cms.jcajce.JceKeyTransEnvelopedRecipient;
+import org.spongycastle.cms.jcajce.JceKeyTransRecipientId;
 import org.spongycastle.cms.jcajce.JceKeyTransRecipientInfoGenerator;
 import org.spongycastle.jcajce.provider.asymmetric.X509;
 import org.spongycastle.jce.provider.BouncyCastleProvider;
+import org.spongycastle.mail.smime.SMIMEEnveloped;
 import org.spongycastle.mail.smime.SMIMEEnvelopedGenerator;
 import org.spongycastle.mail.smime.SMIMESigned;
 import org.spongycastle.mail.smime.SMIMESignedGenerator;
 import org.spongycastle.mail.smime.SMIMESignedParser;
 import org.spongycastle.mail.smime.SMIMEToolkit;
+import org.spongycastle.mail.smime.SMIMEUtil;
 import org.spongycastle.mail.smime.validator.SignedMailValidator;
 import org.spongycastle.operator.ContentSigner;
 import org.spongycastle.operator.ContentVerifierProvider;
@@ -63,6 +72,7 @@ import org.spongycastle.x509.extension.X509ExtensionUtil;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -95,6 +105,7 @@ import javax.activation.DataHandler;
 import javax.activation.DataSource;
 import javax.activation.MailcapCommandMap;
 import javax.mail.Address;
+import javax.mail.Header;
 import javax.mail.Session;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeBodyPart;
@@ -110,8 +121,13 @@ import sa.com.is.Message;
 import sa.com.is.MessagingException;
 import sa.com.is.Multipart;
 import sa.com.is.activity.setup.AccountSettings;
+import sa.com.is.crypto.DecryptedTempFileBody;
 import sa.com.is.db.Trustee;
 import sa.com.is.db.TrusteeManager;
+import sa.com.is.internet.TextBody;
+import sa.com.is.mailstore.BinaryMemoryBody;
+import sa.com.is.mailstore.DecryptStreamParser;
+import sa.com.is.mailstore.LocalMessage;
 
 
 /**
@@ -157,6 +173,142 @@ public class SigningManager {
         CommandMap.setDefaultCommandMap(mc);
 
 
+    }
+
+
+    public Message decryptMessage(Message msg){
+        try
+        {
+            try
+            {
+                String passphrase = getPrivateKeyPhrase(msg);
+
+                this.setPassPhrase(passphrase);
+
+            }catch (Exception s)
+            {
+                Log.e(TAG,s.getMessage());
+            }
+            //Get the signing Certificate which includes the current recipient private key
+            X509Certificate cert = getSigningCertificate();
+            PrivateKey privKey = getPrivateKey();
+
+            //Convert the current message into MimeMessage
+            MimeMessage mimeMessage = convertMessageFromBinary(msg);
+
+            //Create a Recipient Id
+            RecipientId recipientId = new JceKeyTransRecipientId(cert);
+
+            //create a secure SMIME Envelope
+            SMIMEEnveloped m = new SMIMEEnveloped(mimeMessage);
+
+            RecipientInformationStore recipients = m.getRecipientInfos();
+            RecipientInformation recipient = recipients.get(recipientId);
+
+            MimeBodyPart  resultantPart = SMIMEUtil.
+                    toMimeBodyPart(recipient.
+                            getContent(new JceKeyTransEnvelopedRecipient(privKey).setProvider(PROVIDER_NAME)));
+
+           //Message message =  convertMimeBodyPart(msg,resultantPart);
+
+            convertMimeBodyPart(msg,resultantPart);
+
+
+
+
+        }catch (Exception s)
+        {
+            Log.e(TAG,s.getMessage());
+
+        }
+
+        return msg;
+    }
+
+    private void convertMimeBodyPart(Message msg , MimeBodyPart resultantPart)
+            throws IOException, javax.mail.MessagingException, MessagingException {
+
+
+        if(resultantPart.getContent() instanceof String){
+
+            TextBody body = new TextBody(String.valueOf(resultantPart.getContent()));
+
+            sa.com.is.internet.MimeMultipart mp = new sa.com.is.internet.MimeMultipart();
+            mp.addBodyPart(new sa.com.is.internet.MimeBodyPart(body,"text/plain"));
+            msg.setBody(mp);
+        }else if (resultantPart.getContent() instanceof MimeMultipart){
+
+            MimeMultipart mps = ((MimeMultipart)resultantPart.getContent());
+            sa.com.is.internet.MimeMultipart mbps  = new sa.com.is.internet.MimeMultipart();
+            for(int i = 0 ; i < mps.getCount();i++){
+
+                javax.mail.BodyPart bp = mps.getBodyPart(i);
+                if(bp.getContentType() != null && bp.getContentType().contains("text/plain") && bp.getDisposition() == null){
+                    String content = (bp.getContent() == null) ? "" :String.valueOf(bp.getContent());
+                    TextBody txtbody = new TextBody(content);
+                    mbps.addBodyPart(new sa.com.is.internet.MimeBodyPart(txtbody,"text/plain"));
+
+                    continue;
+                }else if (bp.getDisposition() != null && bp.getDisposition().equals("attachment")){
+
+                    //sa.com.is.internet.MimeBodyPart mbp = DecryptStreamParser.parse(context,bp.getInputStream());
+
+                    byte[] data = new byte[0];
+
+                    if(bp.getContent() instanceof String){
+
+                        data = ((String) bp.getContent()).getBytes("UTF-8");
+
+                    }else if (bp.getContent() instanceof BASE64DecoderStream){
+
+                        BASE64DecoderStream bds = ((BASE64DecoderStream)bp.getContent());
+
+                        data = new byte[bds.available()];
+
+                        bds.read(data);
+                        bds.close();
+                    }
+
+
+                        BinaryMemoryBody bmb = new BinaryMemoryBody(data,"Base64");
+
+                        sa.com.is.internet.MimeBodyPart part =  new sa.com.is.internet.MimeBodyPart(bmb);
+
+                        Enumeration enumeration = bp.getAllHeaders();
+
+                        while(enumeration.hasMoreElements()){
+
+                            Header header = (Header) enumeration.nextElement();
+
+                            part.setHeader(header.getName(),header.getValue());
+
+                        }
+                        mbps.addBodyPart(part);
+
+
+
+
+                }
+
+            }
+
+            mbps.setMimeType("multipart/mixed");
+            msg.setBody(mbps);
+
+            if(msg instanceof LocalMessage){
+
+                ((LocalMessage)msg).setMimeType("multipart/alternative");
+            }
+
+
+        }
+
+        /*MimeMessage convertedMessage = convertMessageFromBinary(msg);
+        MimeMultipart mp = new MimeMultipart();
+        mp.addBodyPart(resultantPart);
+        convertedMessage.setContent(mp);
+        //now convert it back
+       return convertFromMessageToISMessage(convertedMessage);*/
     }
 
     private List<X509Certificate> getCertificateChain() throws Exception{
@@ -229,8 +381,11 @@ public class SigningManager {
 
 
             if(certs == null || certs.size() <= 0)
-                throw new Exception("Can't find any certificate to encrypt" +
-                    " the current email");
+            {
+                //add the signing certificate instead
+                //as if he was sending for himself
+                certs.add(getSigningCertificate());
+            }
 
 
             for(X509Certificate cert : certs){
@@ -267,11 +422,31 @@ public class SigningManager {
         }
     }
 
+    private void addCertificate(List<X509Certificate> certs , X509Certificate cert){
+
+        if(!certs.contains(cert)){
+            certs.add(cert);
+        }
+    }
+
 
     private List<X509Certificate> getRecipientsCertificates(Message msg)
             throws Exception , MessagingException{
 
         List<X509Certificate> recipientsCertificates = new ArrayList<X509Certificate>();
+
+        sa.com.is.Address[] fromAddresses = msg.getFrom();
+
+        String emailFrom = null;
+
+        if(fromAddresses != null && fromAddresses.length > 0){
+
+
+            emailFrom = fromAddresses[0].getAddress();
+        }
+
+
+
 
         //Get to Users
         sa.com.is.Address[] To = msg.getRecipients(Message.RecipientType.TO);
@@ -289,7 +464,12 @@ public class SigningManager {
                     X509Certificate cert = readCertificateFromString(current.getEmailCertificate());
 
                     if(cert != null)
-                        recipientsCertificates.add(cert);
+                        addCertificate(recipientsCertificates,cert);
+                }
+
+                if(addr != null && addr.getAddress().equals(emailFrom))
+                {
+                    addCertificate(recipientsCertificates,getSigningCertificate());
                 }
             }
         }
@@ -309,7 +489,12 @@ public class SigningManager {
                     X509Certificate cert = readCertificateFromString(current.getEmailCertificate());
 
                     if(cert != null)
-                        recipientsCertificates.add(cert);
+                        addCertificate(recipientsCertificates, cert);
+                }
+
+                if(addr != null && addr.getAddress().equals(emailFrom))
+                {
+                    addCertificate(recipientsCertificates,getSigningCertificate());
                 }
             }
         }
@@ -330,7 +515,12 @@ public class SigningManager {
                     X509Certificate cert = readCertificateFromString(current.getEmailCertificate());
 
                     if(cert != null)
-                        recipientsCertificates.add(cert);
+                        addCertificate(recipientsCertificates,cert);
+                }
+
+                if(addr != null && addr.getAddress().equals(emailFrom))
+                {
+                    addCertificate(recipientsCertificates,getSigningCertificate());
                 }
             }
         }

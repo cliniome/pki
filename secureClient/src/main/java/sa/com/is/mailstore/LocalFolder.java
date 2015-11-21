@@ -1,6 +1,7 @@
 package sa.com.is.mailstore;
 
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -26,6 +27,7 @@ import android.content.ContentValues;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
 import android.util.Log;
 
 import sa.com.is.Account;
@@ -213,7 +215,7 @@ public class LocalFolder extends Folder<LocalMessage> implements Serializable {
                 Cursor cursor = null;
                 try {
                     cursor = db.rawQuery("SELECT id FROM folders where folders.name = ?",
-                            new String[] { LocalFolder.this.getName() });
+                            new String[]{LocalFolder.this.getName()});
                     if (cursor.moveToFirst()) {
                         int folderId = cursor.getInt(0);
                         return (folderId > 0);
@@ -1453,7 +1455,23 @@ public class LocalFolder extends Folder<LocalMessage> implements Serializable {
 
     private byte[] getBodyBytes(Body body) throws IOException, MessagingException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        body.writeTo(output);
+
+
+        if(body instanceof BinaryTempFileBody){
+            File file = ((BinaryTempFileBody)body).getFile();
+            BufferedInputStream bufferedInputStream = new BufferedInputStream(new FileInputStream(file));
+            byte[] contents = new byte[(int)file.length()];
+            bufferedInputStream.read(contents);
+            output.write(contents);
+            output.flush();
+            bufferedInputStream.close();
+
+        }else{
+            body.writeTo(output);
+            output.flush();
+        }
+
+
         return output.toByteArray();
     }
 

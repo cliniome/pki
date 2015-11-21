@@ -22,6 +22,7 @@ public class MessageDecryptVerifier {
     private static final String PROTOCOL_PARAMETER = "protocol";
     private static final String APPLICATION_PGP_ENCRYPTED = "application/pgp-encrypted";
     private static final String APPLICATION_PGP_SIGNATURE = "application/pgp-signature";
+    private static final String APPLICATION_ENCRYPTED_ENVELOPED = "application/pkcs7-mime";
     private static final String TEXT_PLAIN = "text/plain";
 
 
@@ -35,7 +36,7 @@ public class MessageDecryptVerifier {
             String mimeType = part.getMimeType();
             Body body = part.getBody();
 
-            if (MULTIPART_ENCRYPTED.equals(mimeType)) {
+            if (APPLICATION_ENCRYPTED_ENVELOPED.equals(mimeType)) {
                 encryptedParts.add(part);
             } else if (body instanceof Multipart) {
                 Multipart multipart = (Multipart) body;

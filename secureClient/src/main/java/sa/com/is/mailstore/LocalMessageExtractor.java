@@ -12,7 +12,9 @@ import sa.com.is.Message;
 import sa.com.is.MessagingException;
 import sa.com.is.Multipart;
 import sa.com.is.Part;
+import sa.com.is.crypto.MessageDecryptVerifier;
 import sa.com.is.helper.HtmlConverter;
+import sa.com.is.internet.BinaryTempFileBody;
 import sa.com.is.internet.MessageExtractor;
 import sa.com.is.internet.MimeHeader;
 import sa.com.is.internet.MimeUtility;
@@ -21,8 +23,12 @@ import sa.com.is.mailstore.MessageViewInfo.MessageViewContainer;
 import sa.com.is.provider.AttachmentProvider;
 import sa.com.is.provider.K9FileProvider;
 import sa.com.is.ui.crypto.MessageCryptoAnnotations;
+import sa.com.is.utils.SigningManager;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -422,8 +428,10 @@ public class LocalMessageExtractor {
     }
 
     public static MessageViewInfo decodeMessageForView(Context context,
-            Message message, MessageCryptoAnnotations annotations) throws MessagingException {
+            Message message, MessageCryptoAnnotations annotations) throws MessagingException , IOException {
 
+
+         decryptIfNeeded(message, context);
         // 1. break mime structure on encryption/signature boundaries
         List<Part> parts = getCryptPieces(message, annotations);
 
@@ -452,6 +460,25 @@ public class LocalMessageExtractor {
         }
 
         return new MessageViewInfo(containers, message);
+    }
+
+    private static void decryptIfNeeded(final Message message, final Context context) {
+
+        if(MessageDecryptVerifier.isEncryptedEmail(message)){
+
+            final SigningManager signingManager = new SigningManager(context,message.getFrom()[0].getAddress());
+
+            //Set that message as encrypted
+            message.setEncrypted(true);
+            //That means the current message is encrypted
+            //so try to decrypt it
+            final Message tempMessage =  signingManager.decryptMessage(message);
+
+            if(tempMessage == null) return;
+
+            //message.setBody(tempMessage.getBody());
+
+        }
     }
 
     public static List<Part> getCryptPieces(Message message, MessageCryptoAnnotations annotations) throws MessagingException {
@@ -497,7 +524,7 @@ public class LocalMessageExtractor {
     }
 
     private static List<AttachmentViewInfo> extractAttachmentInfos(Context context, List<Part> attachmentParts)
-            throws MessagingException {
+            throws MessagingException , IOException {
 
         List<AttachmentViewInfo> attachments = new ArrayList<AttachmentViewInfo>();
         for (Part part : attachmentParts) {
@@ -507,7 +534,7 @@ public class LocalMessageExtractor {
         return attachments;
     }
 
-    public static AttachmentViewInfo extractAttachmentInfo(Context context, Part part) throws MessagingException {
+    public static AttachmentViewInfo extractAttachmentInfo(Context context, Part part) throws MessagingException, IOException {
         if (part instanceof LocalPart) {
             LocalPart localPart = (LocalPart) part;
             String accountUuid = localPart.getAccountUuid();
@@ -527,7 +554,46 @@ public class LocalMessageExtractor {
                 Uri uri = K9FileProvider.getUriForFile(context, file, part.getMimeType());
                 long size = file.length();
                 return extractAttachmentInfo(part, uri, size);
-            } else {
+            } else if (body instanceof BinaryTempFileBody) {
+
+                BinaryTempFileBody fileBody = (BinaryTempFileBody)body;
+                File file = fileBody.getFile();
+                Uri uri = Uri.fromFile(file);
+                long size = file.length();
+
+                return extractAttachmentInfo(part,uri,size);
+
+            }else if (body instanceof FileBackedBody){
+
+                FileBackedBody fpb = ((FileBackedBody)body);
+                File file = fpb.getBackedFile();
+                Uri uri = Uri.fromFile(file);
+
+                long size = file.length();
+
+                return extractAttachmentInfo(part,uri,size);
+
+            }else if (body instanceof BinaryMemoryBody){
+
+                BinaryMemoryBody bmb = (BinaryMemoryBody)body;
+
+                long size = bmb.getSize();
+                InputStream is = bmb.getInputStream();
+                byte[] data = new byte[(int)size];
+
+                File tempFile = File.createTempFile("decrypted",null,context.getCacheDir());
+
+                is.read(data);
+
+                FileOutputStream fos = new FileOutputStream(tempFile);
+                fos.write(data);
+                fos.flush();
+                fos.close();
+
+                return extractAttachmentInfo(part,Uri.fromFile(tempFile),size);
+            }
+            else{
+
                 throw new RuntimeException("Not supported");
             }
         }
@@ -552,7 +618,14 @@ public class LocalMessageExtractor {
         if (name == null) {
             firstClassAttachment = false;
             String extension = MimeUtility.getExtensionByMimeType(mimeType);
-            name = "noname" + ((extension != null) ? "." + extension : "");
+
+            if(extension != null && extension.equals("p7m")){
+                name = "smime.p7m";
+                firstClassAttachment = true;
+            }else{
+
+                name = "noname" + ((extension != null) ? "." + extension : "");
+            }
         }
 
         // Inline parts with a content-id are almost certainly components of an HTML message
