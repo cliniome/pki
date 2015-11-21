@@ -229,6 +229,11 @@ public class SigningManager {
             throws IOException, javax.mail.MessagingException, MessagingException {
 
 
+        boolean signed = false;
+        final String CONTENT_TYPE = "application/pkcs7-signature";
+        final String MIME_TYPE = "multipart/signed";
+
+
         if(resultantPart.getContent() instanceof String){
 
             TextBody body = new TextBody(String.valueOf(resultantPart.getContent()));
@@ -240,10 +245,67 @@ public class SigningManager {
 
             MimeMultipart mps = ((MimeMultipart)resultantPart.getContent());
             sa.com.is.internet.MimeMultipart mbps  = new sa.com.is.internet.MimeMultipart();
+
+
+
             for(int i = 0 ; i < mps.getCount();i++){
 
                 javax.mail.BodyPart bp = mps.getBodyPart(i);
-                if(bp.getContentType() != null && bp.getContentType().contains("text/plain") && bp.getDisposition() == null){
+
+                if(bp.getContentType() != null && bp.getContentType().contains("multipart/mixed"))
+                {
+                    MimeMultipart mimeMultipart = ((MimeMultipart)bp.getContent());
+
+                    for(int j=0;j<mimeMultipart.getCount();j++){
+
+
+                        javax.mail.BodyPart bodyPart = mimeMultipart.getBodyPart(j);
+
+                        if(bodyPart.getContentType() != null && bodyPart.getContentType().equals("text/plain"))
+                        {
+                            TextBody txtBody = new TextBody(String.valueOf(bodyPart.getContent()));
+                            mbps.addBodyPart(new sa.com.is.internet.MimeBodyPart(txtBody));
+                        }else if (bodyPart.getDisposition() != null && bodyPart.getDisposition().equals("attachment"))
+                        {
+                            byte[] data = new byte[0];
+
+                            if(bodyPart.getContent() instanceof String){
+                                data = ((String)bodyPart.getContent()).getBytes("UTF-8");
+                            }else if (bodyPart.getContent() instanceof BASE64DecoderStream)
+                            {
+                                BASE64DecoderStream bds = ((BASE64DecoderStream)bodyPart.getContent());
+
+                                data = new byte[bds.available()];
+
+                                bds.read(data);
+                                bds.close();
+                            }
+
+                            BinaryMemoryBody bmb = new BinaryMemoryBody(data,"base64");
+
+                            sa.com.is.internet.MimeBodyPart part =  new sa.com.is.internet.MimeBodyPart(bmb);
+
+                            Enumeration enumeration = bodyPart.getAllHeaders();
+
+                            while(enumeration.hasMoreElements()){
+
+                                Header header = (Header) enumeration.nextElement();
+
+                                if(header.getValue() != null && header.getValue().contains(CONTENT_TYPE))
+                                {
+                                    signed = true;
+                                }
+
+                                part.setHeader(header.getName(),header.getValue());
+
+                            }
+
+                            mbps.addBodyPart(part);
+                        }
+
+                    }
+
+                } else if(bp.getContentType() != null && bp.getContentType().contains("text/plain") && bp.getDisposition() == null){
                     String content = (bp.getContent() == null) ? "" :String.valueOf(bp.getContent());
                     TextBody txtbody = new TextBody(content);
                     mbps.addBodyPart(new sa.com.is.internet.MimeBodyPart(txtbody,"text/plain"));
@@ -270,15 +332,22 @@ public class SigningManager {
                     }
 
 
-                        BinaryMemoryBody bmb = new BinaryMemoryBody(data,"Base64");
+                        BinaryMemoryBody bmb = new BinaryMemoryBody(data,"base64");
 
                         sa.com.is.internet.MimeBodyPart part =  new sa.com.is.internet.MimeBodyPart(bmb);
+
+
 
                         Enumeration enumeration = bp.getAllHeaders();
 
                         while(enumeration.hasMoreElements()){
 
                             Header header = (Header) enumeration.nextElement();
+
+                            if(header.getValue() != null && header.getValue().contains(CONTENT_TYPE))
+                            {
+                                signed = true;
+                            }
 
                             part.setHeader(header.getName(),header.getValue());
 
@@ -292,12 +361,25 @@ public class SigningManager {
 
             }
 
-            mbps.setMimeType("multipart/mixed");
+            if(signed){
+                mbps.setMimeType(MIME_TYPE);
+            }else
+            {
+                mbps.setMimeType("multipart/mixed");
+            }
+
             msg.setBody(mbps);
 
             if(msg instanceof LocalMessage){
 
-                ((LocalMessage)msg).setMimeType("multipart/alternative");
+                if(signed){
+
+                    ((LocalMessage)msg).setMimeType(MIME_TYPE);
+                    ((LocalMessage)msg).setVerified(signed);
+                }else
+                {
+                    ((LocalMessage)msg).setMimeType("multipart/alternative");
+                }
             }
 
 
@@ -804,6 +886,67 @@ public class SigningManager {
             MimeMessage mimeMessage = convertMessageFromBinary(msg);
 
                     //Now verify the message
+            if(mimeMessage.getContent() instanceof BASE64DecoderStream)
+            {
+                MimeMultipart mp = new MimeMultipart("signed");
+
+                System.setProperty("mail.mime.base64.ignoreerrors", "true");
+
+                sa.com.is.internet.MimeMultipart mps = ((sa.com.is.internet.MimeMultipart)msg.getBody());
+
+                for(int i=0;i<mps.getCount();i++){
+
+                    BodyPart bp = mps.getBodyPart(i);
+
+                    if(bp.getBody() instanceof TextBody){
+
+                        TextBody txtbody = ((TextBody)bp.getBody());
+                        byte[] data = txtbody.getText().getBytes("UTF-8");
+
+                        MimeBodyPart mbp = new MimeBodyPart(new ByteArrayInputStream(data));
+
+                        mp.addBodyPart(mbp);
+
+                    }else if (bp.getBody() instanceof BinaryMemoryBody){
+
+                        BinaryMemoryBody bmb = ((BinaryMemoryBody)bp.getBody());
+
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        bmb.writeTo(baos);
+
+                        MimeBodyPart anotherBody = new MimeBodyPart(new ByteArrayInputStream(baos.toByteArray()));
+
+                        mp.addBodyPart(anotherBody);
+
+                    }
+
+                }
+
+                /*BASE64DecoderStream decoderStream = ((BASE64DecoderStream)mimeMessage.getContent());
+
+                int length = decoderStream.available();
+                byte[] data = new byte[length];
+
+                decoderStream.read(data);
+                decoderStream.close();
+
+                javax.mail.BodyPart bodyPart = new MimeBodyPart(new ByteArrayInputStream(data));
+
+               *//* Enumeration enumeration = mimeMessage.getAllHeaders();
+
+                while(enumeration.hasMoreElements()){
+
+                    Header header = (Header) enumeration.nextElement();
+
+                    bodyPart.addHeader(header.getName(),header.getValue());
+                }
+*//*
+                mp.addBodyPart(bodyPart);*/
+
+
+                mimeMessage.setContent(mp);
+
+            }
 
             SMIMESignedParser signedContents = new SMIMESignedParser(new JcaDigestCalculatorProviderBuilder().setProvider("SC").build(),
                     (MimeMultipart)mimeMessage.getContent());

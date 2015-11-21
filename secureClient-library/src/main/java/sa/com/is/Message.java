@@ -32,6 +32,14 @@ public abstract class Message implements Part, CompositeBody {
         this.encrypted = encrypted;
     }
 
+    public boolean isVerified() {
+        return verified;
+    }
+
+    public void setVerified(boolean verified) {
+        this.verified = verified;
+    }
+
     public enum RecipientType {
         TO, CC, BCC,
     }
@@ -46,6 +54,8 @@ public abstract class Message implements Part, CompositeBody {
 
     private boolean signed;
     private boolean encrypted;
+
+    private boolean verified;
 
     public boolean olderThan(Date earliestDate) {
         if (earliestDate == null) {

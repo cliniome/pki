@@ -462,9 +462,12 @@ public class LocalMessageExtractor {
         return new MessageViewInfo(containers, message);
     }
 
-    private static void decryptIfNeeded(final Message message, final Context context) {
+    public static void decryptIfNeeded(final Message message, final Context context) {
 
         if(MessageDecryptVerifier.isEncryptedEmail(message)){
+
+
+            message.setEncrypted(true);
 
             final SigningManager signingManager = new SigningManager(context,message.getFrom()[0].getAddress());
 

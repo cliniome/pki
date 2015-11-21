@@ -380,6 +380,8 @@ public class MessageContainerView extends LinearLayout implements OnClickListene
             renderAttachments(messageViewContainer);
         }
 
+
+
         mHiddenAttachments.setVisibility(View.GONE);
 
         boolean lookForImages = true;

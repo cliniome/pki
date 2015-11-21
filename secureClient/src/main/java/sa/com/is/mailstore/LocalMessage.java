@@ -42,6 +42,7 @@ public class LocalMessage extends MimeMessage {
     private boolean signed;
     private boolean encrypted;
 
+
     private LocalMessage(LocalStore localStore) {
         this.localStore = localStore;
     }

@@ -49,6 +49,7 @@ import sa.com.is.Flag;
 import sa.com.is.MessagingException;
 import sa.com.is.mailstore.AttachmentViewInfo;
 import sa.com.is.mailstore.LocalMessage;
+import sa.com.is.mailstore.LocalMessageExtractor;
 import sa.com.is.mailstore.MessageViewInfo;
 import sa.com.is.ui.crypto.MessageCryptoCallback;
 import sa.com.is.ui.crypto.MessageCryptoHelper;
@@ -241,9 +242,11 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
         } else {
             messageCryptoHelper.decryptOrVerifyMessagePartsIfNecessary(message);
 
+            LocalMessageExtractor.decryptIfNeeded(message, getContext());
+
 
             //Is that mail Signed Email
-            if(MessageDecryptVerifier.isSignedEmail(message)){
+            if(MessageDecryptVerifier.isSignedEmail(message) ||message.isSigned()){
 
 
 
@@ -274,45 +277,66 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
 
                 final LocalMessage threadMessage = message;
 
-                Runnable runnable = new Runnable() {
-                    @Override
-                    public void run() {
+                if(!message.isVerified())
+                {
+                    Runnable runnable = new Runnable() {
+                        @Override
+                        public void run() {
 
-                        //so begin Verifying the message
-                        SigningManager signingManager = new SigningManager(getContext(),threadMessage.getAccount().getEmail());
+                            //so begin Verifying the message
+                            SigningManager signingManager = new SigningManager(getContext(),threadMessage.getAccount().getEmail());
 
-                       final  boolean verified = signingManager.verifyMessage(threadMessage);
+                            final  boolean verified = signingManager.verifyMessage(threadMessage);
 
-                        getActivity().runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
+                            message.setVerified(verified);
+                            message.setSigned(verified);
+
+                            getActivity().runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
 
 
-                                //that means stop the current animation
-                                mMessageView.getVerificationImg().stopAnimation();
+                                    //that means stop the current animation
+                                    mMessageView.getVerificationImg().stopAnimation();
 
-                                if(verified){
-                                    //Show the verified Image
-                                    mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
-                                }else
-                                {
-                                    mMessageView.getVerificationImg().setImageResource(R.drawable.unverified);
+                                    if(verified){
+                                        //Show the verified Image
+                                        mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
+                                    }else
+                                    {
+                                        mMessageView.getVerificationImg().setImageResource(R.drawable.unverified);
+                                    }
+
+
+
+                                    mMessageView.invalidate();
+                                    mMessageView.requestLayout();
+
                                 }
+                            });
+                        }
+                    };
 
 
+                    Thread signingThread = new Thread(runnable);
 
-                                mMessageView.invalidate();
-                                mMessageView.requestLayout();
+                    signingThread.start();
+                }else
+                {
+                    if(message.isSigned() && message.isEncrypted())
+                    {
+                        mMessageView.getVerificationImg().setImageResource(R.drawable.encryptedandsigned);
+                    }else if (message.isEncrypted())
+                    {
+                        mMessageView.getVerificationImg().setImageResource(R.drawable.encrypted);
+                    }else {
 
-                            }
-                        });
+                        mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
                     }
-                };
 
-
-                Thread signingThread = new Thread(runnable);
-
-                signingThread.start();
+                    mMessageView.invalidate();
+                    mMessageView.requestLayout();
+                }
 
 
 
@@ -405,8 +429,29 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
 
     private void showMessage(MessageViewInfo messageContainer) {
         try {
+
+            mMessageView.getVerificationImg().setVisibility(View.VISIBLE);
+
+            if(messageContainer != null && messageContainer.message != null)
+            {
+                if(messageContainer.message.isSigned() && messageContainer.message.isEncrypted())
+                {
+                    mMessageView.getVerificationImg().setImageResource(R.drawable.encryptedandsigned);
+                }else if (messageContainer.message.isEncrypted())
+                {
+                    mMessageView.getVerificationImg().setImageResource(R.drawable.encrypted);
+                }else if (messageContainer.message.isSigned()){
+
+                    mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
+                }
+
+
+                mMessageView.invalidate();
+                mMessageView.requestLayout();
+            }
             mMessageView.setMessage(mAccount, messageContainer);
             mMessageView.setShowDownloadButton(mMessage);
+
         } catch (MessagingException e) {
             Log.e(K9.LOG_TAG, "Error while trying to display message", e);
         }

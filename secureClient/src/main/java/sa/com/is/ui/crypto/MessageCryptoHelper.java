@@ -32,6 +32,7 @@ import sa.com.is.internet.MimeBodyPart;
 import sa.com.is.internet.TextBody;
 import sa.com.is.mailstore.DecryptStreamParser;
 import sa.com.is.mailstore.LocalMessage;
+import sa.com.is.mailstore.LocalMessageExtractor;
 import sa.com.is.mailstore.MessageHelper;
 import sa.com.is.mailstore.OpenPgpResultAnnotation;
 import sa.com.is.mailstore.OpenPgpResultAnnotation.CryptoError;
@@ -94,6 +95,11 @@ public class MessageCryptoHelper {
         addFoundInlinePgpParts(inlineParts);
 
         decryptOrVerifyNextPart();
+
+
+
+
+
     }
 
     private void processFoundParts(List<Part> foundParts, CryptoPartType cryptoPartType, CryptoError errorIfIncomplete,
