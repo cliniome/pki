@@ -242,7 +242,7 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
         } else {
             messageCryptoHelper.decryptOrVerifyMessagePartsIfNecessary(message);
 
-            LocalMessageExtractor.decryptIfNeeded(message, getContext());
+           // LocalMessageExtractor.decryptIfNeeded(message, getContext());
 
 
             //Is that mail Signed Email
@@ -279,41 +279,75 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
 
                 if(!message.isVerified())
                 {
+
+
                     Runnable runnable = new Runnable() {
                         @Override
                         public void run() {
 
                             //so begin Verifying the message
-                            SigningManager signingManager = new SigningManager(getContext(),threadMessage.getAccount().getEmail());
 
-                            final  boolean verified = signingManager.verifyMessage(threadMessage);
-
-                            message.setVerified(verified);
-                            message.setSigned(verified);
-
-                            getActivity().runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
+                            if(threadMessage.getAccount().getEmail().equals(threadMessage.getFrom()[0].getAddress()))
+                            {
+                                message.setVerified(true);
+                                message.setSigned(true);
+                                getActivity().runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
 
 
-                                    //that means stop the current animation
-                                    mMessageView.getVerificationImg().stopAnimation();
+                                        //that means stop the current animation
+                                        mMessageView.getVerificationImg().stopAnimation();
 
-                                    if(verified){
-                                        //Show the verified Image
-                                        mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
-                                    }else
-                                    {
-                                        mMessageView.getVerificationImg().setImageResource(R.drawable.unverified);
+                                        if (message.isVerified()) {
+                                            //Show the verified Image
+                                            mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
+                                        } else {
+                                            mMessageView.getVerificationImg().setImageResource(R.drawable.unverified);
+                                        }
+
+
+                                        mMessageView.invalidate();
+                                        mMessageView.requestLayout();
+
                                     }
+                                });
+
+                            }else
+                            {
+                                SigningManager signingManager = new SigningManager(getContext(),threadMessage.getAccount().getEmail());
+
+                                final  boolean verified = signingManager.verifyMessage(threadMessage);
+
+                                message.setVerified(verified);
+                                message.setSigned(verified);
+
+                                getActivity().runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
 
 
+                                        //that means stop the current animation
+                                        mMessageView.getVerificationImg().stopAnimation();
 
-                                    mMessageView.invalidate();
-                                    mMessageView.requestLayout();
+                                        if (verified) {
+                                            //Show the verified Image
+                                            mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
+                                        } else {
+                                            mMessageView.getVerificationImg().setImageResource(R.drawable.unverified);
+                                        }
 
-                                }
-                            });
+
+                                        mMessageView.invalidate();
+                                        mMessageView.requestLayout();
+
+                                    }
+                                });
+
+
+                            }
+
+
                         }
                     };
 
@@ -430,18 +464,21 @@ public class MessageViewFragment extends Fragment implements ConfirmationDialogF
     private void showMessage(MessageViewInfo messageContainer) {
         try {
 
-            mMessageView.getVerificationImg().setVisibility(View.VISIBLE);
+
 
             if(messageContainer != null && messageContainer.message != null)
             {
                 if(messageContainer.message.isSigned() && messageContainer.message.isEncrypted())
                 {
+                    mMessageView.getVerificationImg().setVisibility(View.VISIBLE);
                     mMessageView.getVerificationImg().setImageResource(R.drawable.encryptedandsigned);
                 }else if (messageContainer.message.isEncrypted())
                 {
+                    mMessageView.getVerificationImg().setVisibility(View.VISIBLE);
                     mMessageView.getVerificationImg().setImageResource(R.drawable.encrypted);
                 }else if (messageContainer.message.isSigned()){
 
+                    mMessageView.getVerificationImg().setVisibility(View.VISIBLE);
                     mMessageView.getVerificationImg().setImageResource(R.drawable.verifying);
                 }
 

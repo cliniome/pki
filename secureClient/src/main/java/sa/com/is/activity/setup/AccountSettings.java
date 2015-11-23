@@ -231,7 +231,7 @@ public class AccountSettings extends K9PreferenceActivity {
 
         //TODO : Add your file picker in here
 
-        EditTextPreference keyPrefs = (EditTextPreference)findPreference("certificate_key_passphrase");
+        final EditTextPreference keyPrefs = (EditTextPreference)findPreference("certificate_key_passphrase");
 
         if(keyPrefs != null)
         {
@@ -251,6 +251,9 @@ public class AccountSettings extends K9PreferenceActivity {
 
 
                     editor.commit();
+
+                    keyPrefs.setText(""); //Clear he Text
+                    keyPrefs.setDefaultValue("");
 
                     Log.i("AccountSettings-Mohamed",o.toString());
 

@@ -212,7 +212,7 @@ public class Account implements BaseAccount, StoreConfig {
     private Searchable searchableFolders;
     private boolean subscribedFoldersOnly;
     private int maximumPolledMessageAge;
-    private int maximumAutoDownloadMessageSize;
+    private int maximumAutoDownloadMessageSize=10485760;
     // Tracks if we have sent a notification for this account for
     // current set of fetched messages
     private boolean mRingNotified;

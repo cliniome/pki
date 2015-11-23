@@ -9,6 +9,7 @@ import android.util.Log;
 
 import com.sun.mail.util.BASE64DecoderStream;
 
+import org.apache.james.mime4j.util.MimeUtil;
 import org.spongycastle.asn1.ASN1Encodable;
 import org.spongycastle.asn1.ASN1EncodableVector;
 
@@ -93,6 +94,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -112,6 +114,7 @@ import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import javax.mail.internet.MimePart;
+import javax.mail.internet.MimeUtility;
 import javax.mail.util.ByteArrayDataSource;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
@@ -144,9 +147,6 @@ public class SigningManager {
             "^[_A-Za-z0-9-\\+]+(\\.[_A-Za-z0-9-]+)*@"
                     + "[A-Za-z0-9-]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$";
 
-
-
-
     private Context context;
 
     private PrivateKey privateKey;
@@ -155,11 +155,14 @@ public class SigningManager {
 
     private String passPhrase;
 
+
+
     public SigningManager(Context conn,String accountEmail)
     {
         this.context = conn;
         this.setAccountEmail(accountEmail);
         addMailCapabilities();
+
     }
 
     private void addMailCapabilities() {
@@ -226,7 +229,7 @@ public class SigningManager {
     }
 
     private void convertMimeBodyPart(Message msg , MimeBodyPart resultantPart)
-            throws IOException, javax.mail.MessagingException, MessagingException {
+            throws Exception {
 
 
         boolean signed = false;
@@ -261,7 +264,7 @@ public class SigningManager {
 
                         javax.mail.BodyPart bodyPart = mimeMultipart.getBodyPart(j);
 
-                        if(bodyPart.getContentType() != null && bodyPart.getContentType().equals("text/plain"))
+                        if(bodyPart.getContentType() != null && (bodyPart.getContentType().contains("text/plain")))
                         {
                             TextBody txtBody = new TextBody(String.valueOf(bodyPart.getContent()));
                             mbps.addBodyPart(new sa.com.is.internet.MimeBodyPart(txtBody));
@@ -305,7 +308,7 @@ public class SigningManager {
 
                     }
 
-                } else if(bp.getContentType() != null && bp.getContentType().contains("text/plain") && bp.getDisposition() == null){
+                } else if(bp.getContentType() != null && (bp.getContentType().contains("text/plain")) && bp.getDisposition() == null){
                     String content = (bp.getContent() == null) ? "" :String.valueOf(bp.getContent());
                     TextBody txtbody = new TextBody(content);
                     mbps.addBodyPart(new sa.com.is.internet.MimeBodyPart(txtbody,"text/plain"));
@@ -383,6 +386,64 @@ public class SigningManager {
             }
 
 
+        }else if (resultantPart.getContent() instanceof BASE64DecoderStream)
+        {
+           /* BASE64DecoderStream base64DecoderStream = ((BASE64DecoderStream)resultantPart.getContent());
+            byte[] data = new byte[base64DecoderStream.available()];
+            base64DecoderStream.read(data);
+
+            //convert it into Binary Memory body
+            //application/x-pkcs7-mime
+
+            MimeMultipart mimeMultipart = new MimeMultipart();
+
+            MimeBodyPart mimeBodyPart = new MimeBodyPart(new ByteArrayInputStream(data));
+
+
+
+            //copy all the headers
+            Enumeration enumeration = resultantPart.getAllHeaders();
+
+            while(enumeration.hasMoreElements())
+            {
+                Header header = (Header) enumeration.nextElement();
+                mimeBodyPart.setHeader(header.getName(),header.getValue());
+            }
+
+            mimeMultipart.addBodyPart(mimeBodyPart);
+
+            Boolean signedObject = new Boolean(signed);
+
+            sa.com.is.internet.MimeMultipart mbps = new sa.com.is.internet.MimeMultipart();
+            performLogic(mimeMultipart, mbps, signedObject, CONTENT_TYPE);
+
+            msg.setBody(mbps);*/
+
+            Boolean signedObject = new Boolean(signed);
+
+            MimeMultipart mimeMultipart = new MimeMultipart(resultantPart.getDataHandler().getDataSource());
+
+            sa.com.is.internet.MimeMultipart mbps = new sa.com.is.internet.MimeMultipart();
+
+            performLogic(mimeMultipart,mbps,signedObject,CONTENT_TYPE);
+
+
+            msg.setBody(mbps);
+
+
+
+            if(msg instanceof LocalMessage){
+
+                if(signedObject){
+
+                    ((LocalMessage)msg).setMimeType(MIME_TYPE);
+                    ((LocalMessage)msg).setVerified(signedObject.booleanValue());
+                }else
+                {
+                    ((LocalMessage)msg).setMimeType("multipart/alternative");
+                }
+            }
+
         }
 
         /*MimeMessage convertedMessage = convertMessageFromBinary(msg);
@@ -391,6 +452,146 @@ public class SigningManager {
         convertedMessage.setContent(mp);
         //now convert it back
        return convertFromMessageToISMessage(convertedMessage);*/
+    }
+
+    private void performLogic( MimeMultipart mps,
+                              sa.com.is.internet.MimeMultipart mbps,Boolean signed,String CONTENT_TYPE) throws MessagingException,
+            IOException,Exception
+    {
+        for(int i = 0 ; i < mps.getCount();i++){
+
+            javax.mail.BodyPart bp = mps.getBodyPart(i);
+
+            if(bp.getContent() instanceof MimeMultipart)
+            {
+                sa.com.is.internet.MimeMultipart anotherMultiPart = new sa.com.is.internet.MimeMultipart();
+                MimeMultipart sourceMulti = ((MimeMultipart)bp.getContent());
+                performLogic(sourceMulti,anotherMultiPart,signed,CONTENT_TYPE);
+
+                for(int j = 0 ; j < anotherMultiPart.getCount();j++)
+                {
+                    mbps.addBodyPart(anotherMultiPart.getBodyPart(j));
+                }
+            }else if(bp.getContentType() != null && (bp.getContentType().contains("multipart/mixed") ||bp.getContentType().contains("multipart/alternative")))
+            {
+                MimeMultipart mimeMultipart = ((MimeMultipart)bp.getContent());
+
+                for(int j=0;j<mimeMultipart.getCount();j++){
+
+
+                    javax.mail.BodyPart bodyPart = mimeMultipart.getBodyPart(j);
+
+                    if(bodyPart.getContentType() != null && (bodyPart.getContentType().contains("text/plain")))
+                    {
+                        TextBody txtBody = new TextBody(String.valueOf(bodyPart.getContent()));
+
+                        mbps.addBodyPart(new sa.com.is.internet.MimeBodyPart(txtBody));
+                    }else if (bodyPart.getContentType() != null && (bodyPart.getContentType().contains("text/html")
+                    && bodyPart.getDisposition() == null)){
+
+                        TextBody txtBody = new TextBody(String.valueOf(bodyPart.getContent()));
+
+                        sa.com.is.internet.MimeBodyPart mimeBodyPart = new sa.com.is.internet.MimeBodyPart(txtBody,"text/html");
+
+                        mbps.addBodyPart(mimeBodyPart);
+
+
+                    }
+                    else if (bodyPart.getDisposition() != null && bodyPart.getDisposition().equals("attachment"))
+                    {
+                        byte[] data = new byte[0];
+
+                        if(bodyPart.getContent() instanceof String){
+                            data = ((String)bodyPart.getContent()).getBytes("UTF-8");
+                        }else if (bodyPart.getContent() instanceof BASE64DecoderStream)
+                        {
+                            BASE64DecoderStream bds = ((BASE64DecoderStream)bodyPart.getContent());
+
+                            data = new byte[bds.available()];
+
+                            bds.read(data);
+                            bds.close();
+                        }
+
+                        BinaryMemoryBody bmb = new BinaryMemoryBody(data,"base64");
+
+                        sa.com.is.internet.MimeBodyPart part =  new sa.com.is.internet.MimeBodyPart(bmb);
+
+                        Enumeration enumeration = bodyPart.getAllHeaders();
+
+                        while(enumeration.hasMoreElements()){
+
+                            Header header = (Header) enumeration.nextElement();
+
+                            if(header.getValue() != null && header.getValue().contains(CONTENT_TYPE))
+                            {
+                                signed = true;
+                            }
+
+                            part.setHeader(header.getName(),header.getValue());
+
+                        }
+
+                        mbps.addBodyPart(part);
+                    }
+
+                }
+
+            } else if(bp.getContentType() != null && (bp.getContentType().contains("text/plain")) && bp.getDisposition() == null){
+                String content = (bp.getContent() == null) ? "" :String.valueOf(bp.getContent());
+                TextBody txtbody = new TextBody(content);
+                mbps.addBodyPart(new sa.com.is.internet.MimeBodyPart(txtbody,"text/plain"));
+
+                continue;
+            }else if (bp.getDisposition() != null && bp.getDisposition().equals("attachment")){
+
+                //sa.com.is.internet.MimeBodyPart mbp = DecryptStreamParser.parse(context,bp.getInputStream());
+
+                byte[] data = new byte[0];
+
+                if(bp.getContent() instanceof String){
+
+                    data = ((String) bp.getContent()).getBytes("UTF-8");
+
+                }else if (bp.getContent() instanceof BASE64DecoderStream){
+
+                    BASE64DecoderStream bds = ((BASE64DecoderStream)bp.getContent());
+
+                    data = new byte[bds.available()];
+
+                    bds.read(data);
+                    bds.close();
+                }
+
+
+                BinaryMemoryBody bmb = new BinaryMemoryBody(data,"base64");
+
+                sa.com.is.internet.MimeBodyPart part =  new sa.com.is.internet.MimeBodyPart(bmb);
+
+
+
+                Enumeration enumeration = bp.getAllHeaders();
+
+                while(enumeration.hasMoreElements()){
+
+                    Header header = (Header) enumeration.nextElement();
+
+                    if(header.getValue() != null && header.getValue().contains(CONTENT_TYPE))
+                    {
+                        signed = true;
+                    }
+
+                    part.setHeader(header.getName(),header.getValue());
+
+                }
+                mbps.addBodyPart(part);
+
+
+
+
+            }
+
+        }
     }
 
     private List<X509Certificate> getCertificateChain() throws Exception{
@@ -1509,6 +1710,7 @@ public class SigningManager {
 
         //Load the Security provider with the highest priority to make it used
 
+
         Security.insertProviderAt(new BouncyCastleProvider(), 1);
 
         KeyStore store = getKeyStore();
@@ -1535,10 +1737,13 @@ public class SigningManager {
         //get the certificate
         X509Certificate signingCertificate = (X509Certificate) store.getCertificate(privateAlias);
 
+
         return signingCertificate;
     }
 
     private KeyStore getKeyStore() throws Exception {
+
+
 
         KeyStore store = KeyStore.getInstance("PKCS12",BouncyCastleProvider.PROVIDER_NAME);
         // KeyStore store = KeyStore.getInstance("AndroidKeyStore");
@@ -1549,6 +1754,8 @@ public class SigningManager {
         InputStream is = context.getContentResolver().openInputStream(Uri.parse(certificateLocation));
         store.load(is, getPassPhrase().toCharArray());
         is.close();
+
+
 
         return store;
 
@@ -1565,7 +1772,8 @@ public class SigningManager {
 
     private String getPrivateKeyPhrase(Message message) throws Exception
     {
-        String key = AccountSettings.KEY_PASSPHRASE+message.getFrom()[0].getAddress();
+        LocalMessage msg = (LocalMessage)message;
+        String key = AccountSettings.KEY_PASSPHRASE+ msg.getAccount().getEmail();
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this.context);
 

@@ -431,7 +431,7 @@ public class LocalMessageExtractor {
             Message message, MessageCryptoAnnotations annotations) throws MessagingException , IOException {
 
 
-         decryptIfNeeded(message, context);
+         decryptIfNeeded((LocalMessage) message, context);
         // 1. break mime structure on encryption/signature boundaries
         List<Part> parts = getCryptPieces(message, annotations);
 
@@ -462,14 +462,16 @@ public class LocalMessageExtractor {
         return new MessageViewInfo(containers, message);
     }
 
-    public static void decryptIfNeeded(final Message message, final Context context) {
+    public static void decryptIfNeeded(final LocalMessage message, final Context context) {
 
         if(MessageDecryptVerifier.isEncryptedEmail(message)){
 
 
             message.setEncrypted(true);
 
-            final SigningManager signingManager = new SigningManager(context,message.getFrom()[0].getAddress());
+
+
+            final SigningManager signingManager = new SigningManager(context,message.getAccount().getEmail());
 
             //Set that message as encrypted
             message.setEncrypted(true);

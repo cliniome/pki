@@ -112,7 +112,7 @@ public class AccountSettings {
                 new V(1, new IntegerRangeSetting(0, 100, 10))
             ));
         s.put("maximumAutoDownloadMessageSize", Settings.versions(
-                new V(1, new IntegerResourceSetting(32768,
+                new V(1, new IntegerResourceSetting(10485760,
                         R.array.account_settings_autodownload_message_size_values))
             ));
         s.put("maximumPolledMessageAge", Settings.versions(
